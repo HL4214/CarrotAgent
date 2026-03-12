@@ -38,16 +38,24 @@ class HelloAgentsLLM:
                 messages=messages,
                 temperature=temperature,
                 stream=True,
-                extra_body={"reasoning_split": reasoning_split},
+                extra_body={
+                    "thinking": {
+                        "type": "enabled",
+                    },
+                }
             )
 
             # 处理流式响应
             print("✅ 大语言模型响应成功:")
             collected_content = []
             for chunk in response:
-                content = chunk.choices[0].delta.content or ""
-                print(content, end="", flush=True)
-                collected_content.append(content)
+                if getattr(chunk.choices[0].delta, "reasoning_content", None):
+                    print(chunk.choices[0].delta.reasoning_content, end='')
+
+                if chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content or ""
+                    print(content, end="", flush=True)
+                    collected_content.append(content)
             print()  # 在流式输出结束后换行
             return "".join(collected_content)
 
@@ -63,10 +71,32 @@ if __name__ == '__main__':
 
         exampleMessages = [
             {"role": "system",
-                "content": "You are a helpful assistant that writes Python code."},
-            {"role": "user", "content": "写一个快速排序算法"}
+             "content": "You are a helpful assistant that writes Python code."},
+            {"role": "user", "content": "你好"}
         ]
 
+        exampleMessages = [
+            {'content': '''基于以下搜索结果为用户提供完整、准确的答案：
+
+             用户问题：理解：用户想了解北京明天的天气情况以及适合游玩的景点推荐。
+        搜索词：北京明天天气, 北京旅游景点推荐
+        臺灣 護照
+    
+        
+
+        请要求：
+        1.
+        综合搜索结果，提供准确、有用的回答
+        2.
+        如果是技术问题，提供具体的解决方案或代码
+        3.
+        引用重要信息的来源
+        4.
+        回答要结构清晰、易于理解
+        5.
+        如果搜索结果不够完整，请说明并提供补充建议
+        ''', 'role': 'user'}
+        ]
         print("--- 调用LLM ---")
         responseText = llmClient.think(exampleMessages)
         if responseText:
