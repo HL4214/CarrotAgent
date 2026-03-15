@@ -95,7 +95,7 @@ class CarrotLLMClient(object):
                **kwargs):
         content = ""
         logger.debug("LLM 流式响应:\n")
-        for content_part in self.stream(messages=messages,
+        for content_part in self.think(messages=messages,
                                         stream=True,
                                         **kwargs):
             print(content_part, end="", flush=True)
