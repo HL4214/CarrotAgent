@@ -4,14 +4,14 @@ LLMClient类
 LLMClient类是一个用于与大型语言模型（LLM）进行交互的客户端类。它提供了一个接口，使用户能够发送请求并接收来自LLM的响应。该类可以用于各种应用场景，如自然语言处理、文本生成、对话系统等。
 """
 import os
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from openai import OpenAI
 
 from ..utils import logger
 
 
-class CarrotLLMClient(object):
+class CarrotLLMClient:
     def __init__(self,
                  model: str = None,
                  base_url: str = None,
@@ -30,7 +30,7 @@ class CarrotLLMClient(object):
         :param max_tokens:
         :param kwargs:
         """
-        self.model = model or os.getenv("LLM_MODEL", "gpt-4")
+        self.model = model or os.getenv("LLM_MODEL_ID", "gpt-4")
         self.base_url = base_url or os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
         self.api_key = api_key or os.getenv("LLM_API_KEY")
         self.timeout = timeout or os.getenv("LLM_TIMEOUT", 30)
@@ -49,7 +49,9 @@ class CarrotLLMClient(object):
 
     def think(self,
               messages,
-              stream=True,
+              tools: Optional[List[Dict]] = None,
+              tool_choice: Optional[str] = None,
+              return_raw=False,
               **kwargs):
         """
         调用llm进行思考，并返回流失响应
@@ -57,25 +59,65 @@ class CarrotLLMClient(object):
         :param stream:
         :return:
         """
-        logger.info("LLMClient thinking with messages: {}".format(messages))
-
+        # logger.info("LLMClient thinking with messages: {}".format(messages))
         try:
             requests_kwargs = {
                 "model": self.model,
                 "messages": messages,
                 "temperature": self.temperature,
                 "max_tokens": self.max_tokens,
-                "stream": stream
-
+                "stream": False
             }
             # TODO:添加tools相关信息
+            if tools:
+                requests_kwargs["tools"] = tools
+                if tool_choice:
+                    requests_kwargs["tool_choice"] = tool_choice
             response = self._client.chat.completions.create(**requests_kwargs)
 
-            logger.debug(f"LLM响应成功,流失响应:{stream}")
+            if return_raw:
+                # 返回原始响应
+                return response
+            else:
+                return response.choices[0].message.content
+
+        except Exception as e:
+            logger.error("LLMClient think error: {}".format(e))
+            raise e
+
+    def think_stream(self,
+                     messages,
+                     tools: Optional[List[Dict]] = None,
+                     tool_choice: Optional[str] = None,
+                     return_raw=False,
+                     **kwargs):
+        """
+        调用llm进行思考，并返回流失响应
+        :param messages:
+        :param stream:
+        :return:
+        """
+        # logger.info("LLMClient thinking with messages: {}".format(messages))
+        try:
+            requests_kwargs = {
+                "model": self.model,
+                "messages": messages,
+                "temperature": self.temperature,
+                "max_tokens": self.max_tokens,
+                "stream": True
+            }
+            # TODO:添加tools相关信息
+            if tools:
+                requests_kwargs["tools"] = tools
+                if tool_choice:
+                    requests_kwargs["tool_choice"] = tool_choice
+            response = self._client.chat.completions.create(**requests_kwargs)
+            logger.info(f"LLM响应成功,流失响应")
             for chunk in response:
-                content = chunk.choices[0].delta.get("content", "")
+                content = chunk.choices[0].delta.content or ""
                 if content:
                     yield content
+
 
         except Exception as e:
             logger.error("LLMClient think error: {}".format(e))
@@ -84,20 +126,24 @@ class CarrotLLMClient(object):
     def invoke(self,
                messages: List[Dict[str, str]],
                **kwargs):
-
         content = self.think(messages=messages,
-                             stream=False,
                              **kwargs)
         return content
+
+    def invoke_raw(self,
+                   messages: List[Dict[str, str]],
+                   **kwargs):
+        return self.think(
+            messages=messages,
+            return_raw=True,
+            **kwargs
+        )
 
     def stream(self,
                messages: List[Dict[str, str]],
                **kwargs):
         content = ""
-        logger.debug("LLM 流式响应:\n")
-        for content_part in self.think(messages=messages,
-                                        stream=True,
-                                        **kwargs):
-            print(content_part, end="", flush=True)
+        for content_part in self.think_stream(messages=messages,
+                                              **kwargs):
             content += content_part
         return content

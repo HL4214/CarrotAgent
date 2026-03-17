@@ -21,8 +21,8 @@ class Config(BaseModel):
     # 系统配置
     debug: bool = False
     log_level: str = "INFO"
-    show_agent_steps: bool = False
-    show_progess: bool = True
+    show_agent_steps: bool = True
+    show_progress: bool = True
 
     # 历史记录配置
     max_history_length: int = 100
@@ -33,3 +33,6 @@ class Config(BaseModel):
     min_retain_rounds: int = 10
     summary_timeout: int = 120
     tool_message_format: str = "strict"
+
+    # Agent配置
+    max_loop_steps: int = 10

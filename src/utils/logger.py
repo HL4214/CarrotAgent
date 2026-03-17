@@ -12,6 +12,7 @@ class AgentLogger:
         # 1. 生成基于时间的唯一文件名 (例如: 20240520_143005_AgentTrace.log)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.log_file = self.log_dir / f"{timestamp}_{name}.log"
+        # self.log_file = self.log_dir / f"{name}.log"
 
         # 2. 创建自定义 Logger
         self.logger = logging.getLogger(name)

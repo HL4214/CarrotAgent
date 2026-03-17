@@ -25,6 +25,8 @@ from pathlib import Path
 import runpy
 from typing import List, Optional, Dict, Any
 
+from src.utils import logger
+
 
 @dataclass
 class ContextBuilder:
@@ -52,8 +54,8 @@ class ContextBuilder:
     _runtime_system_blocks: List[str] = field(default_factory=list, init=False)
 
     def build_messages(
-        self,
-        history_messages: List[Dict[str, Any]],
+            self,
+            history_messages: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         """
         构建完整的 messages 列表
@@ -65,21 +67,21 @@ class ContextBuilder:
             完整的 messages 列表，可直接传给 LLM
         """
         messages: List[Dict[str, Any]] = []
-        
+
         # L1: System prompt + Tools（缓存）
         system_messages = self._get_system_messages()
         messages.extend(system_messages)
-        
+
         # L3/L4: History messages（包含 user/assistant/tool/summary）
         messages.extend(history_messages)
-        
+
         return messages
 
     def get_system_messages(self) -> List[Dict[str, Any]]:
         """获取 system messages（供日志记录等使用）"""
         system_messages = self._get_system_messages()
         return [dict(m) for m in system_messages]
-    
+
     def _get_system_messages(self) -> List[Dict[str, Any]]:
         """获取系统消息（带缓存）"""
         # 检查 CODE_LAW 是否更新
@@ -96,10 +98,10 @@ class ContextBuilder:
             has_code_law_msg = len(self._cached_system_messages) > 1
             if (code_law and has_code_law_msg) or (not code_law and not has_code_law_msg):
                 return self._with_runtime_system_blocks(self._cached_system_messages)
-        
+
         # 重新构建
         messages: List[Dict[str, Any]] = []
-        
+
         # L1: System prompt + Tools
         system_prompt = self._load_system_prompt()
         tools_prompt = self._load_tool_prompts()
@@ -111,20 +113,20 @@ class ContextBuilder:
 
         if self._mcp_tools_prompt:
             system_prompt = f"{system_prompt}\n\n# MCP Tools\n{self._mcp_tools_prompt}"
-        
+
         if system_prompt.strip():
             messages.append({
                 "role": "system",
                 "content": system_prompt.strip(),
             })
-        
+
         # L2: CODE_LAW
         if code_law:
             messages.append({
                 "role": "system",
                 "content": f"# Project Rules (CODE_LAW)\n{code_law}",
             })
-        
+
         self._cached_system_messages = messages
         return self._with_runtime_system_blocks(messages)
 
@@ -154,8 +156,9 @@ class ContextBuilder:
         """加载 L1 系统 prompt"""
         if self.system_prompt_override:
             return self.system_prompt_override
-        prompt_path = Path(self.project_root) / "prompts" / "agents_prompts" / "L1_system_prompt.py"
+        prompt_path = Path(self.project_root).resolve() / "src" / "prompts" / "agents_prompts" / "L1_system_prompt.py"
         if not prompt_path.exists():
+            logger.warning(f"L1_system_prompt.py not found in {prompt_path}")
             return ""
         data = runpy.run_path(str(prompt_path))
         prompt = data.get("system_prompt", "")
@@ -163,7 +166,7 @@ class ContextBuilder:
 
     def _load_tool_prompts(self) -> str:
         """加载所有工具的 prompt"""
-        prompts_dir = Path(self.project_root) / "prompts" / "tools_prompts"
+        prompts_dir = Path(self.project_root).resolve() / "src" / "prompts" / "tools_prompts"
         if not prompts_dir.exists():
             return ""
         prompts: List[str] = []
@@ -210,5 +213,5 @@ class ContextBuilder:
             self._cached_code_law_mtime = mtime
             return self._cached_code_law
         return ""
-    
+
     # 兼容旧接口已移除，请使用 build_messages()

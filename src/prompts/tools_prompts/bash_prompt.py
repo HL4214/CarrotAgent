@@ -5,10 +5,10 @@ Execute a shell command within the project sandbox. Supports command chaining (&
 Follows the Universal Tool Response Protocol (顶层字段仅: status/data/text/error/stats/context).
 
 Usage
-- Use Bash for build/test/run commands or system utilities that are not covered by other tools.
-- Do NOT use shell commands for listing/searching/reading files:
+- Use Bash for build/test/run commands.txt or system utilities that are not covered by other tools.
+- Do NOT use shell commands.txt for listing/searching/reading files:
   - Use LS for listing, Read for file contents, Grep for content search, Glob for filename search.
-- Avoid interactive commands (vim/nano/top/htop/ssh/git rebase -i, etc.) — they are blocked.
+- Avoid interactive commands.txt (vim/nano/top/htop/ssh/git rebase -i, etc.) — they are blocked.
 - Prefer the `directory` parameter over `cd`. If you must use `cd`, it must stay within the project root.
 
 Parameters (JSON object)
@@ -41,6 +41,6 @@ Examples
 2) Run a command in a subdirectory
 {"command": "npm test", "directory": "frontend"}
 
-3) Chain commands (allowed)
+3) Chain commands.txt (allowed)
 {"command": "python -m pip --version && python -V"}
 """

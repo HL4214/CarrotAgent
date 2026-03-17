@@ -499,6 +499,8 @@ class HistoryManager:
                                 name = call.get("name") or "unknown_tool"
                                 call_id = call.get("id")
                                 arguments = call.get("arguments") or {}
+                                extra_content = call.get("extra_content",
+                                                         {})  # 兼容Google api调用时的thought-signatures，https://ai.google.dev/gemini-api/docs/thought-signatures?hl=zh-cn#sequential_function_calling_example_2
                                 args_str = arguments if isinstance(arguments, str) else json.dumps(arguments,
                                                                                                    ensure_ascii=False)
                                 assistant_msg["tool_calls"].append({
@@ -508,6 +510,7 @@ class HistoryManager:
                                         "name": name,
                                         "arguments": args_str,
                                     },
+                                    "extra_content": extra_content
                                 })
                         except Exception as exc:
                             logger.warning("Failed to build tool_calls metadata: %s", exc)

@@ -13,24 +13,24 @@ class ErrorCode(str, Enum):
     """
     标准错误码枚举（遵循《通用工具响应协议》）
     """
-    NOT_FOUND = "NOT_FOUND"           # 文件/路径不存在
-    ACCESS_DENIED = "ACCESS_DENIED"   # 路径不在 project root 内（沙箱越界）
+    NOT_FOUND = "NOT_FOUND"  # 文件/路径不存在
+    ACCESS_DENIED = "ACCESS_DENIED"  # 路径不在 project root 内（沙箱越界）
     PERMISSION_DENIED = "PERMISSION_DENIED"  # OS 权限不足（EACCES 等）
-    INVALID_PARAM = "INVALID_PARAM"   # 参数校验失败（正则错误、类型错误等）
-    TIMEOUT = "TIMEOUT"               # 工具在获取有效数据前超时
-    INTERNAL_ERROR = "INTERNAL_ERROR" # 未分类的内部异常
-    EXECUTION_ERROR = "EXECUTION_ERROR" # 其它 I/O 或执行错误（磁盘满等）
-    IS_DIRECTORY = "IS_DIRECTORY"     # 路径是目录而非文件
-    BINARY_FILE = "BINARY_FILE"       # 文件是二进制格式
-    CONFLICT = "CONFLICT"             # 文件在读取后被修改（乐观锁冲突）
-    CIRCUIT_OPEN = "CIRCUIT_OPEN"     # 工具熔断中（临时禁用）
+    INVALID_PARAM = "INVALID_PARAM"  # 参数校验失败（正则错误、类型错误等）
+    TIMEOUT = "TIMEOUT"  # 工具在获取有效数据前超时
+    INTERNAL_ERROR = "INTERNAL_ERROR"  # 未分类的内部异常
+    EXECUTION_ERROR = "EXECUTION_ERROR"  # 其它 I/O 或执行错误（磁盘满等）
+    IS_DIRECTORY = "IS_DIRECTORY"  # 路径是目录而非文件
+    BINARY_FILE = "BINARY_FILE"  # 文件是二进制格式
+    CONFLICT = "CONFLICT"  # 文件在读取后被修改（乐观锁冲突）
+    CIRCUIT_OPEN = "CIRCUIT_OPEN"  # 工具熔断中（临时禁用）
     ASK_USER_UNAVAILABLE = "ASK_USER_UNAVAILABLE"  # 子代理禁止交互
-    MCP_PARAM_ERROR = "MCP_PARAM_ERROR"            # MCP 参数错误
-    MCP_PARSE_ERROR = "MCP_PARSE_ERROR"            # MCP 解析错误
-    MCP_EXECUTION_ERROR = "MCP_EXECUTION_ERROR"    # MCP 执行错误
-    MCP_NETWORK_ERROR = "MCP_NETWORK_ERROR"        # MCP 网络错误
-    MCP_TIMEOUT = "MCP_TIMEOUT"                    # MCP 超时
-    MCP_NOT_FOUND = "MCP_NOT_FOUND"                # MCP 工具不存在
+    MCP_PARAM_ERROR = "MCP_PARAM_ERROR"  # MCP 参数错误
+    MCP_PARSE_ERROR = "MCP_PARSE_ERROR"  # MCP 解析错误
+    MCP_EXECUTION_ERROR = "MCP_EXECUTION_ERROR"  # MCP 执行错误
+    MCP_NETWORK_ERROR = "MCP_NETWORK_ERROR"  # MCP 网络错误
+    MCP_TIMEOUT = "MCP_TIMEOUT"  # MCP 超时
+    MCP_NOT_FOUND = "MCP_NOT_FOUND"  # MCP 工具不存在
 
 
 class ToolStatus(str, Enum):
@@ -44,6 +44,7 @@ class ToolStatus(str, Enum):
     SUCCESS = "success"
     PARTIAL = "partial"
     ERROR = "error"
+
 
 class ToolParameter(BaseModel):
     """
@@ -311,7 +312,7 @@ class Tool(abc.ABC):
         return {
             "name": self.name,
             "description": self.description,
-            "parameters": [param.dict() for param in self.get_parameters()]
+            "parameters": [param for param in self.get_parameters()]
         }
 
     def __str__(self) -> str:
@@ -326,4 +327,24 @@ class Tool(abc.ABC):
         使工具能够被支持原生function calling的LLM调用
         :return:
         """
-        raise NotImplementedError("to_openai_schema method not implemented")
+        def get_property_schema(params: List[ToolParameter]) -> Dict[str, Any]:
+            properties = {}
+            for param in params:
+                properties[param.name] = {
+                    "type": param.type,
+                    "description": param.description,
+                }
+            return properties
+
+        return {
+            "type": "function",
+            "function":{
+                "name": self.name,
+                "description": self.description,
+                "parameters": {
+                    "type": "object",
+                    "properties": get_property_schema(self.get_parameters()),
+                    "required": [param.name for param in self.get_parameters() if param.required],
+                },
+            }
+        }
