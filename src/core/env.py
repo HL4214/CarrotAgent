@@ -3,18 +3,22 @@
 import os
 from typing import Optional
 
-
 _ENV_LOADED = False
 
 
-def load_env() -> None:
+def load_env(dotenv_path: Optional[str] = None) -> None:
     """Load .env once if available (no override)."""
+    dotenv_path = "D:\workfile\CarrotAgent\.env"
     global _ENV_LOADED
     if _ENV_LOADED:
         return
     try:
+        print("dotenv_path:", dotenv_path)
         from dotenv import load_dotenv, find_dotenv
-        dotenv_path = find_dotenv(usecwd=True)
+        if dotenv_path is None:
+            dotenv_path = find_dotenv(usecwd=True)
+        print("dotenv_path:", dotenv_path)
+
         if dotenv_path:
             load_dotenv(dotenv_path, override=False)
         else:

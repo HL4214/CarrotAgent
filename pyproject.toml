@@ -1,10 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "carrotagent"
-version = "0.1.0"
+version = "0.1.2"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "inquirerpy>=0.3.4",
     "prompt-toolkit>=3.0.52",
     "pyfiglet>=1.0.4",
+    "questionary>=2.1.1",
+    "typer>=0.24.1",
+    "pydantic>=2.0",
+    "openai>=2.26.0",
+    "dotenv>=0.9.9"
 ]
+
+[project.scripts]
+# 命令名 = "包名.文件名:Typer对象"
+CarrotAgent = "scripts.chat_cli_agent:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src","scripts"]

@@ -35,4 +35,7 @@ class Config(BaseModel):
     tool_message_format: str = "strict"
 
     # Agent配置
-    max_loop_steps: int = 10
+    max_loop_steps: int = 50
+
+    # Skill配置
+    skill_dir: str = os.environ.get("SKILL_DIR", "D:\workfile\CarrotAgent\skills")

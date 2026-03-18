@@ -1,1 +1,0 @@
-先帮我在目录下创建一个output.txt文件，然后写入Hello，然后将文件名改为hello.txt

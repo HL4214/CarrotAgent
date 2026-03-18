@@ -1,15 +1,15 @@
 import abc
 import json
 import traceback
+from pathlib import Path
 from random import choices
 from typing import Optional, List, Any, Dict, Tuple, Union
 
-from win32serviceutil import usage
-
 from ..core import Config, CarrotLLMClient, Message
+from ..core.context import ContextBuilder
 from ..tools.registry import ToolsRegistry
 from ..utils import logger
-from ..utils.trace_doubao import create_trace_logger
+from ..utils.trace_doubao import create_trace_logger, StepType
 
 
 class BaseAgent(abc.ABC):
@@ -17,6 +17,7 @@ class BaseAgent(abc.ABC):
                  name: str,
                  llm_client: CarrotLLMClient,
                  tool_registry: ToolsRegistry,
+                 project_root: Union[str, Path],
                  system_prompt: Optional[str] = None,
                  config: Optional[Config] = None):
         self.name = name
@@ -24,8 +25,23 @@ class BaseAgent(abc.ABC):
         self.tool_registry = tool_registry
         self.system_prompt = system_prompt
         self.config = config
+
+        # 工作沙箱配置，一般就是工作目录
+        self.project_root = project_root
+
         self._history: List[Message] = []
+
+        # 上下文构建器
+        self.context_builder = ContextBuilder(
+            tool_registry=self.tool_registry,
+            project_root=self.project_root,
+            system_prompt_override=self.system_prompt,
+        )
+
+        self.logger = logger
         self.trace_logger = create_trace_logger()
+        self._system_messages_logged = False
+        self._system_messages_override: Optional[List[dict]] = None
 
     @abc.abstractmethod
     def run(self, input_text: str, **kwargs) -> str:
@@ -142,6 +158,22 @@ class BaseAgent(abc.ABC):
     def _execute_tool(self, tool_name: str, tool_input: Any):
         res = self.tool_registry.execute_tool(tool_name, tool_input)
         return str(res)
+
+    def _log_system_messages_if_needed(self) -> None:
+        """
+        记录系统消息,因为系统消息在最多只记录一次。
+        :return:
+        """
+        if self._system_messages_logged or not self.trace_logger:
+            return
+        system_messages = self._get_system_messages_for_run()
+        self.trace_logger.record_system(system_messages)
+        self._system_messages_logged = True
+
+    def _get_system_messages_for_run(self) -> List[dict]:
+        if self._system_messages_override:
+            return [dict(m) for m in self._system_messages_override]
+        return self.context_builder.get_system_messages()
 
     def __str__(self) -> str:
         return f"Agent(name={self.name})"

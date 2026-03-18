@@ -6,6 +6,7 @@ import uuid
 import time
 import json
 from pathlib import Path
+from typing import Any
 
 
 class StepType(Enum):
@@ -55,10 +56,12 @@ class AgentTrace:
     def __init__(self, base_dir: str = "logs"):
         if getattr(self, "_initialized", False): return
 
+        self.start_time = datetime.now()
         self.trace_id = str(uuid.uuid4())
         # 自动生成文件名: trace_20231027_1030_uuid.json
         time_str = datetime.now().strftime("%Y%m%d_%H%M")
         self.file_path = Path(base_dir) / f"trace_{time_str}_{self.trace_id[:8]}.json"
+        self.html_file_path = Path(base_dir) / f"trace_{time_str}_{self.trace_id[:8]}.html"
         self.steps = []
         self._initialized = True
 
@@ -87,15 +90,31 @@ class AgentTrace:
         return step.step_id
 
     # ========== 快捷记录方法 ==========
-    def record_user_input(self, user_input: str, metadata: dict = None):
+    def record_user_input(self, user_input: Any, metadata: dict = {}):
         """记录用户输入"""
+        if isinstance(user_input, dict):
+            content = user_input
+        else:
+            content = {"input": user_input}
+
         return self.add_step(
             step_type=StepType.USER_INPUT,
-            content={"input": user_input},
+            content=content,
             metadata=metadata
         )
 
-    def record_llm_interaction(self, prompt: str, response: str, token_usage: dict = None, metadata: dict = None):
+    def record_system(self, content: Any, metadata: dict = {}):
+        """记录系统输入"""
+        if not isinstance(content, str):
+            content = str(content)
+
+        return self.add_step(
+            step_type=StepType.SYSTEM,
+            content={"system": content},
+            metadata=metadata
+        )
+
+    def record_llm_interaction(self, prompt: str, response: str, token_usage: dict = None, metadata: dict = {}):
         """记录LLM调用（包含耗时和token）"""
         start_time = time.time()
         # 记录LLM请求
@@ -123,7 +142,7 @@ class AgentTrace:
         return req_step_id
 
     def record_tool_call(self, tool_name: str, tool_params: dict, tool_result: dict,
-                         success: bool = True, metadata: dict = None):
+                         success: bool = True, metadata: dict = {}):
         """记录工具调用"""
         call_step_id = self.add_step(
             step_type=StepType.TOOL_CALL,
@@ -156,7 +175,7 @@ class AgentTrace:
         )
 
     # ========== 核心功能：导出可视化HTML ==========
-    def export_to_html(self, file_path: str = "agent_trace_report.html"):
+    def export_to_html(self):
         """
         将Trace记录导出为单个HTML文件（可直接打开，无需依赖外部资源）
         :param file_path: 保存路径，默认 agent_trace_report.html
@@ -168,7 +187,7 @@ class AgentTrace:
             StepType.LLM_RESPONSE: {"name": "LLM响应", "color": "#0F9D58"},
             StepType.TOOL_CALL: {"name": "工具调用", "color": "#9C27B0"},
             StepType.TOOL_RESPONSE: {"name": "工具响应", "color": "#FF9800"},
-            StepType.AGENT_DECISION: {"name": "Agent决策", "color": "#00ACC1"},
+            StepType.SYSTEM: {"name": "系统输入", "color": "#00ACC1"},
             StepType.ERROR: {"name": "错误", "color": "#DB4437"}
         }
 
@@ -202,7 +221,7 @@ class AgentTrace:
                 "type": step.step_type.value,
                 "type_name": type_mapping[step.step_type]["name"],
                 "type_color": type_mapping[step.step_type]["color"],
-                "timestamp": step.timestamp.isoformat(),
+                "timestamp": step.timestamp.format(),
                 "display_content": display_content,
                 "raw_content": step.content,
                 "metadata": step.metadata,
@@ -608,7 +627,7 @@ class AgentTrace:
         """
 
         # 3. 填充模板变量
-        end_time = max(step.timestamp for step in self.steps).isoformat() if self.steps else datetime.now().isoformat()
+        end_time = max(step.timestamp for step in self.steps).format() if self.steps else datetime.now().isoformat()
         failed_steps = len([s for s in self.steps if s.status == StepStatus.FAILED])
 
         # 替换模板中的占位符
@@ -624,6 +643,7 @@ class AgentTrace:
             }, ensure_ascii=False)
         )
 
+        file_path = self.html_file_path
         # 4. 保存为HTML文件
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(html_content)

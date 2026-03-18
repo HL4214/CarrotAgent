@@ -7,8 +7,6 @@ import uuid
 from pathlib import Path
 from typing import Optional, Any, Union, List, Dict
 
-from Demos.rastest import usage
-
 from .base_agent import BaseAgent
 from ..core.context import ContextBuilder
 from ..core.context.history_manager import HistoryManager
@@ -30,15 +28,14 @@ class CodeAgent(BaseAgent):
                  project_root: Union[str, Path],
                  system_prompt: Optional[str] = None,
                  config: Optional[Config] = None):
-        super().__init__(name,
-                         llm_client,
-                         tool_registry,
-                         system_prompt,
-                         config)
-        # 工作沙箱配置
-        self.project_root = project_root
+        super().__init__(name=name,
+                         llm_client=llm_client,
+                         tool_registry=tool_registry,
+                         system_prompt=system_prompt,
+                         config=config,
+                         project_root=project_root
+                         )
 
-        self.logger = logger
         self.last_response_raw: Optional[Any] = None
 
         # Debug选项
@@ -63,7 +60,7 @@ class CodeAgent(BaseAgent):
         )
 
         # Skills
-        self._skill_loader = SkillLoader(self.project_root)
+        self._skill_loader = SkillLoader(config.skill_dir)
         self._skills_prompt = ""
         self._refresh_skills_prompt()
 
@@ -82,11 +79,12 @@ class CodeAgent(BaseAgent):
             skills_prompt=self._skills_prompt,
         )
 
-        # Trace日志，后续使用LangSmith实现
-
-        self._system_messages_override: Optional[List[dict]] = None
-
     def _refresh_skills_prompt(self) -> None:
+        """
+        刷新技能描述,可实时刷新
+        :return:
+        """
+        logger.debug("Refreshing Skills Prompt...")
         refresh = os.getenv("SKILLS_REFRESH_ON_CALL", "true").lower() in {"1", "true", "yes", "y", "on"}
         if refresh:
             self._skill_loader.refresh_if_stale()
@@ -94,6 +92,7 @@ class CodeAgent(BaseAgent):
             self._skill_loader.scan()
         budget = int(os.getenv("SKILLS_PROMPT_CHAR_BUDGET", "12000"))
         self._skills_prompt = self._skill_loader.format_skills_for_prompt(budget)
+        logger.debug(f"Skills Prompt: {self._skills_prompt}")
 
     def _register_builtin_tools(self):
         """注册内置工具"""
@@ -150,10 +149,11 @@ class CodeAgent(BaseAgent):
 
         # 1.预处理用户输入(@file 解析)
         processed_input = self.process_user_input(input_text)
+        self._log_system_messages_if_needed()  # 记录系统消息至日志中
+        self.trace_logger.record_user_input(user_input={"raw_user_input": input_text,
+                                                        "processed_user_input": processed_input})  # 记录用户输入
 
-        # 2.压缩检测
-
-        # 3.将用户消息写入history内
+        # 2.将用户消息写入history内
         self.history_manager.append_user(processed_input)
         # TODO:添加trace记录
 
@@ -170,6 +170,7 @@ class CodeAgent(BaseAgent):
             traceback.print_exc()
             raise ValueError(f"运行错误: {e}")
 
+        # self.trace_logger.export_to_html()
         return response_text
 
     def _run_loop(self,
@@ -188,24 +189,38 @@ class CodeAgent(BaseAgent):
         6. 若为工具调用：则执行工具。将assistant + tool消息追加到History中。
         :return:
         """
+        # TODO:目前只支持React的方式，后面要支持先和模型通过plan对话的方式
+
         tool_choice = "auto"
         for step in range(1, self.config.max_loop_steps):
-            # TODO:将工具描述转换为function calling schema
+            # 将工具描述转换为function calling schema，使工具能够被支持原生function calling的LLM调用
             tools_schema: List[Dict[str, Any]] = self.tool_registry.get_openai_tools_schema()
 
             if self.console_verbose:
                 self._console(f"\n--- Step {step}/{self.config.max_loop_steps} ---")
-
             if self.logger.isEnabledFor(logging.DEBUG):
                 self.logger.debug("Step %d/%d", step, self.config.max_loop_steps)
 
             # 每次循环开始前，判断是否需要压缩上下文
             if self.history_manager.should_compress(pending_input):
+                if self.console_verbose:
+                    self._console("\n📦 触发历史压缩...")
+                self.logger.debug("触发历史压缩")
+
+                estimated_tokens = self.history_manager.estimate_context_tokens(pending_input)
+                # self.trace_logger.("history_compression_triggered", {
+                #     "estimated_tokens": estimated_tokens,
+                #     "threshold": threshold,
+                #     "total_usage_tokens": self.history_manager.get_total_usage_tokens(),
+                #     "message_count": self.history_manager.get_message_count(),
+                # }, step=step)
+
                 rounds_before = self.history_manager.get_rounds_count()
                 messages_before = self.history_manager.get_message_count()
                 compress_info = self.history_manager.compact(on_event=None,
                                                              return_info=True)
                 compressed = bool(compress_info.get("compressed"))
+
                 if compressed:
                     rounds_after = self.history_manager.get_rounds_count()
                     messages_after = self.history_manager.get_message_count()
@@ -336,13 +351,7 @@ class CodeAgent(BaseAgent):
 
     def _build_messages(self, history_messages: list[dict]) -> list[dict]:
         system_messages = self._get_system_messages_for_run()
-        self.trace_logger.add_step(step_type=StepType.SYSTEM, content=system_messages)
         return list(system_messages) + list(history_messages)
-
-    def _get_system_messages_for_run(self) -> List[dict]:
-        if self._system_messages_override:
-            return [dict(m) for m in self._system_messages_override]
-        return self.context_builder.get_system_messages()
 
     def process_user_input(self, input_text):
         """
@@ -350,8 +359,11 @@ class CodeAgent(BaseAgent):
         :param input_text:
         :return:
         """
+        # 重现加载技能提示，确保获取的是最新的技能提示
         self._refresh_skills_prompt()
         self.context_builder.set_skills_prompt(self._skills_prompt)
+
+        # 处理用户的输入，包含一些引用的文件
         preprocess_result = preprocess_input(input_text)
         processed_input = preprocess_result.processed_input
 

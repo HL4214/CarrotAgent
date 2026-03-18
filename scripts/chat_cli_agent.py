@@ -38,7 +38,7 @@ from src.core import CarrotLLMClient, Config
 from src.tools.registry import ToolsRegistry
 from src.utils.ui_components import UIComponent
 from src.core.env import load_env
-load_env()
+
 
 # Geeky Theme
 custom_theme = Theme({
@@ -204,7 +204,13 @@ def _print_assistant_response(text: str) -> None:
     console.print(Panel(md, title="[agent]Assistant[/agent]", border_style="blue", expand=False))
 
 
+import typer
+
+app = typer.Typer()
+
+@app.command()
 def main():
+    load_env(dotenv_path=r"D:\workfile\CarrotAgent\.env")
     ui = ui_init()
 
     # 创建带历史记录的会话
@@ -246,4 +252,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    app()

@@ -10,7 +10,7 @@ Document Requirements
 - Use Markdown headings (#, ##, etc.) for structure.
 - Keep the document concise. 200-400 words is optimal.
 - Keep explanations short, direct, and specific to this repository.
-- Provide examples where helpful (commands.txt, directory paths, naming patterns).
+- Provide examples where helpful (commands.md, directory paths, naming patterns).
 - Maintain a professional, instructional tone.
 
 Recommended Sections
@@ -22,7 +22,7 @@ located.
 
 Build, Test, and Development Commands
 
-- List key commands.txt for building, testing, and running locally (e.g., npm test, make build).
+- List key commands.md for building, testing, and running locally (e.g., npm test, make build).
 - Briefly explain what each command does.
 
 Coding Style & Naming Conventions
