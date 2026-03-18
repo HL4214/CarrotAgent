@@ -1,5 +1,6 @@
 .chat_history
 uv.lock
+.env
 
 ./memory
 ./logs
